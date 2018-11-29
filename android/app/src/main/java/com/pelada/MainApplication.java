@@ -1,4 +1,4 @@
-package com.study2reactnative;
+package com.pelada;
 
 import android.app.Application;
 
