@@ -10,7 +10,8 @@ import React, {Component} from 'react';
 import {
   StyleSheet, Text, View, ScrollView,
   TouchableWithoutFeedback, SafeAreaView,
-  Button, TextInput, Modal, Image, AsyncStorage
+  Button, TextInput, Modal, Image, AsyncStorage,
+  Linking
 } from 'react-native';
 
 import memoize from 'memoize-one'
@@ -102,7 +103,7 @@ const PlayerCard = ({player, setPeso, hideTypeModal, showTypeModal, setFuncao, d
         <Button style={{flex: 1, fontSize: 40}} title="3 estrelas" onPress={() => setPeso(3)} />
         <Button style={{flex: 1, fontSize: 40}} title="Goleiro" onPress={() => setFuncao("goleiro")} />
         <Button style={{flex: 1, fontSize: 40}} title="Jogador" onPress={() => setFuncao("jogador")} />
-        <View style={{ borderBottomWidth: 1, borderColor: "#d6d7da" }} />
+        <View style={{ borderBottomWidth: 1, borderColor: "#d6d7da", marginTop: 10, marginBottom: 10 }} />
         <Button style={{flex: 1, fontSize: 20}} title="Fechar" onPress={() => hideTypeModal()} />
       </View>
     </Modal>
@@ -113,7 +114,9 @@ const defaultState = {
   section: "players",
   inputPlayer: "",
   teams: [],
-  players: []
+  players: [],
+  settingsOpen: false,
+  playersOnLine: 5,
 }
 
 type Props = {};
@@ -130,7 +133,8 @@ const getAvailableTeams = (teams, linePlayersTotal, maxLinePlayersPerTeam) => {
   const lastTeamMaxCount = (linePlayersTotal % maxLinePlayersPerTeam) === 0 ? maxLinePlayersPerTeam : (linePlayersTotal % maxLinePlayersPerTeam)
   const teamsAux = [...teams]
 
-  if (teams[ teams.length -1 ].length >= lastTeamMaxCount) {
+  // + 1 por conta do goleiro
+  if (teams[ teams.length -1 ].length >= lastTeamMaxCount + 1) {
     teamsAux.pop()
   }
 
@@ -218,13 +222,14 @@ export default class App extends Component<Props> {
 
   generateTeams = () => {
     const {
-      players
+      players,
+      playersOnLine
     } = this.state
 
     const playersAvaiblable = players.filter(p => !!p.ableToTeam)
     const goalkeppers = playersAvaiblable.filter(p => p.type == "goleiro")
     const linePlayers = playersAvaiblable.filter(p => p.type != "goleiro")
-    const maxLinePlayersPerTeam = 5
+    const maxLinePlayersPerTeam = /^\d+$/.test(playersOnLine) ? parseInt(playersOnLine) : 5
 
     const teansCount = Math.max(goalkeppers.length, Math.ceil(linePlayers.length / maxLinePlayersPerTeam))
 
@@ -263,6 +268,18 @@ export default class App extends Component<Props> {
     this.setState({teams: teams}, this.syncState)
   }
 
+  openSettings = () => {
+    this.setState({settingsOpen: true})
+  }
+
+  closeSettings = () => {
+    this.setState({settingsOpen: false})
+  }
+
+  onPlayersOnLineChange = playersOnLine => {
+    this.setState({playersOnLine}, this.syncState)
+  }
+
   sortPlayers = memoize(
     players => players.sort((player1, player2) => {
       const player1NameFinal = player1.type == "goleiro" ? `1${player1.name}` : `2${player1.name}`
@@ -297,7 +314,9 @@ export default class App extends Component<Props> {
       section,
       players,
       inputPlayer,
-      teams
+      teams,
+      settingsOpen,
+      playersOnLine
     } = this.state
 
     return (
@@ -319,22 +338,61 @@ export default class App extends Component<Props> {
         {
           section == "teams" ? <Times
             generateTeams={this.generateTeams}
+            openSettings={this.openSettings}
             teams={teams}
           /> : null
         }
 
-        <View style={{flexDirection: "row", paddingTop: 5, paddingBottom: 5, borderTopColor: "#d6d7da", borderTopWidth: 1}}>
-          <View style={{flex: 1}}>
-            <Button title="Jogadores" onPress={() => this.setSection("players")} />
-          </View>
+        {
+          section == "credits" ? <Credits /> : null
+        }
 
-          <View style={{flex: 1, borderLeftColor: "#d6d7da", borderLeftWidth: 1}}>
-            <Button title="Times" onPress={() => this.setSection("teams")} />
-          </View>
+        {
+          settingsOpen ? <Settings
+            closeSettings={this.closeSettings}
+            onPlayersOnLineChange={this.onPlayersOnLineChange}
+            playersOnLine={playersOnLine || 5}
+          /> : null
+        }
+
+        <View style={{flexDirection: "row", paddingTop: 5, paddingBottom: 5, borderTopColor: "#d6d7da", borderTopWidth: 1}}>
+            <TouchableWithoutFeedback onPress={() => this.setSection("players")}>
+              <View style={{flex: 1, justifyContent: "center", alignItems: "center"}}>
+                <Image
+                  style={{width: 30, height: 30, marginRight: 5, marginTop: 2}}
+                  resizeMode="contain"
+                  source={require('./images/player.png')} />
+              </View>
+            </TouchableWithoutFeedback>
+
+            <TouchableWithoutFeedback onPress={() => this.setSection("teams")}>
+              <View style={{flex: 1, justifyContent: "center", alignItems: "center", borderColor: "#d6d7da", borderLeftWidth: 1}}>
+                <Image
+                  style={{width: 30, height: 30, marginRight: 5, marginTop: 2}}
+                  resizeMode="contain"
+                  source={require('./images/teams.png')} />
+              </View>
+            </TouchableWithoutFeedback>
+
+            <TouchableWithoutFeedback onPress={() => this.setSection("credits")}>
+              <View style={{flex: 1, justifyContent: "center", alignItems: "center", borderColor: "#d6d7da", borderLeftWidth: 1}}>
+                <Image
+                  style={{width: 30, height: 30, marginRight: 5, marginTop: 2}}
+                  resizeMode="contain"
+                  source={require('./images/credits.png')} />
+              </View>
+            </TouchableWithoutFeedback>
         </View>
       </SafeAreaView>
     );
   }
+}
+
+const Credits = () => {
+  return <View style={{flex: 1, paddingLeft: 10, paddingRight: 10, justifyContent: "center", alignItems: "center"}}>
+    <Text>Feito com ♥ por Manoel Quirino Neto</Text>
+    <Button title="Facebook" onPress={() => { Linking.openURL('https://www.facebook.com/manoelquirinoneto') }} />
+  </View>
 }
 
 const Team = ({players, count}) => {
@@ -344,10 +402,35 @@ const Team = ({players, count}) => {
   </View>
 }
 
-const Times = ({generateTeams, teams}) => {
+const Settings = ({closeSettings, onPlayersOnLineChange, playersOnLine}) => {
+  return <Modal
+      animationType="slide"
+      transparent={false}
+      visible={true}
+    >
+    <View style={{flex: 1, justifyContent: "center"}}>
+      <Text style={{textAlign: "center", fontSize: 20, marginBottom: 20}}>Configurações</Text>
+      <View style={{ flexDirection: "row", alignItems: "center"}}>
+        <Text style={{width: 150, textAlign: "right", paddingRight: 10, fontSize: 15}}>Jogadores (linha): </Text>
+        <TextInput keyboardType="numeric" onChangeText={onPlayersOnLineChange} value={playersOnLine} autoCorrect={false} style={{borderColor: "#d6d7da", borderWidth: 1, height: 30, width: 50, textAlign: "center"}}/>
+      </View>
+      <View style={{ borderBottomWidth: 1, borderColor: "#d6d7da", marginTop: 10, marginBottom: 10 }} />
+      <Button title="Fechar" onPress={closeSettings} />
+    </View>
+  </Modal>
+}
 
-  return <ScrollView style={{flex: 1, paddingLeft: 10, paddingRight: 10}}>
-    <Button title="Gerar times" style={{fontSize: 30}} onPress={generateTeams} />
+const Times = ({generateTeams, teams, openSettings}) => {
+
+  return <ScrollView style={{flex: 1, paddingLeft: 10, paddingRight: 10, paddingTop: 20}} >
+    <View style={{ flexDirection: "row" }}>
+      <View style={{flex: 1}}>
+        <Button title="Gerar times" style={{fontSize: 30}} onPress={generateTeams} />
+      </View>
+      <View style={{flex: 1}}>
+        <Button title="Configurações" style={{fontSize: 30}} onPress={openSettings} />
+      </View>
+    </View>
     { teams.map((players, i) => <Team key={i} players={players} count={i + 1} />) }
   </ScrollView>
 
