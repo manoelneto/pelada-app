@@ -12,6 +12,7 @@
     "memoize-one": "^4.0.3",
     "react": "16.6.0-alpha.8af6728",
     "react-native": "0.57.4",
+    "react-native-picker-select": "^5.1.0",
     "react-native-swipeout": "^2.3.6"
   },
   "devDependencies": {

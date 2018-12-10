@@ -11,8 +11,10 @@ import {
   StyleSheet, Text, View, ScrollView,
   TouchableWithoutFeedback, SafeAreaView,
   Button, TextInput, Modal, Image, AsyncStorage,
-  Linking
+  Linking, Picker, ActivityIndicator
 } from 'react-native';
+
+import PickerSelect from 'react-native-picker-select'
 
 import memoize from 'memoize-one'
 
@@ -23,7 +25,7 @@ const PlayerNameCard = ({player}) => {
 
   const pesoStars = []
 
-  for (i = 1; i <= (player.peso || 1); i++) {
+  for (i = 1; i <= parseInt(player.peso || 1); i++) {
     pesoStars.push("☆")
   }
 
@@ -34,7 +36,7 @@ const PlayerNameCard = ({player}) => {
         {pesoStars.join("")}
       </Text>
       {
-        player.type == "goleiro" ? <Image
+        isGoleiro(player) ? <Image
           style={{width: 20, height: 20, marginRight: 5, marginTop: 2}}
           source={require('./images/goleiro.png')} /> : <Image
           style={{width: 20, height: 20, marginRight: 5, marginTop: 2}}
@@ -45,7 +47,7 @@ const PlayerNameCard = ({player}) => {
 }
 
 
-const PlayerCard = ({player, setPeso, hideTypeModal, showTypeModal, setFuncao, deletePlayer, toggleAbleToTeam}) => {
+const PlayerCard = ({player, setPlayerName, setPeso, hideTypeModal, showTypeModal, setFuncao, deletePlayer, toggleAbleToTeam}) => {
 
   const swipeBtns = [{
     text: 'Apagar',
@@ -54,14 +56,25 @@ const PlayerCard = ({player, setPeso, hideTypeModal, showTypeModal, setFuncao, d
     onPress: deletePlayer
   }];
 
+
+  const leftSwipeBtns = [{
+    text: 'Alterar',
+    backgroundColor: '#0b8af3',
+    underlayColor: 'rgba(0, 0, 0, 0.6)',
+    onPress: showTypeModal
+  }];
+
+
   const pesoStars = []
 
-  for (i = 1; i <= (player.peso || 1); i++) {
+  for (i = 1; i <= parseInt(player.peso || 1); i++) {
     pesoStars.push("☆")
   }
 
   return <View style={{borderBottomWidth: 1, borderColor: "#d6d7da"}}>
-    <Swipeout right={swipeBtns}
+    <Swipeout
+      right={swipeBtns}
+      left={leftSwipeBtns}
       autoClose={true}
       backgroundColor= 'transparent'>
 
@@ -79,7 +92,7 @@ const PlayerCard = ({player, setPeso, hideTypeModal, showTypeModal, setFuncao, d
           </Text>
           <TouchableWithoutFeedback onPress={showTypeModal}>
             {
-              player.type == "goleiro" ? <Image
+              isGoleiro(player) ? <Image
                 style={{width: 20, height: 20, marginRight: 5, marginTop: 2}}
                 source={require('./images/goleiro.png')} /> : <Image
                 style={{width: 20, height: 20, marginRight: 5, marginTop: 2}}
@@ -95,23 +108,65 @@ const PlayerCard = ({player, setPeso, hideTypeModal, showTypeModal, setFuncao, d
       animationType="slide"
       transparent={false}
       visible={player.showTypeModal == true}
+      onRequestClose={() => console.log("onRequestClose")}
     >
-      <View style={{flex: 1, justifyContent: "center"}}>
-        <Text style={{textAlign: "center"}}>Escolher Função</Text>
-        <Button style={{flex: 1, fontSize: 40}} title="1 estrela" onPress={() => setPeso(1)} />
-        <Button style={{flex: 1, fontSize: 40}} title="2 estrelas" onPress={() => setPeso(2)} />
-        <Button style={{flex: 1, fontSize: 40}} title="3 estrelas" onPress={() => setPeso(3)} />
-        <Button style={{flex: 1, fontSize: 40}} title="Goleiro" onPress={() => setFuncao("goleiro")} />
-        <Button style={{flex: 1, fontSize: 40}} title="Jogador" onPress={() => setFuncao("jogador")} />
-        <View style={{ borderBottomWidth: 1, borderColor: "#d6d7da", marginTop: 10, marginBottom: 10 }} />
-        <Button style={{flex: 1, fontSize: 20}} title="Fechar" onPress={() => hideTypeModal()} />
-      </View>
+      <SafeAreaView style={{flex: 1}}>
+        <ScrollView>
+          <Text style={styles.modalTitle}>{player.name}</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={{marginBottom: 5}}>Estrelas</Text>
+            <PickerSelect
+              placeholder={{}}
+              items={[{
+                label: "☆",
+                value: "1"
+              }, {
+                label: "☆☆",
+                value: "2"
+              }, {
+                label: "☆☆☆",
+                value: "3"
+              }, {
+                label: "☆☆☆☆",
+                value: "4"
+              }, {
+                label: "☆☆☆☆☆",
+                value: "5"
+              }]}
+              style={{inputIOS: styles.picker}}
+              onValueChange={setPeso}
+              value={player.peso ? player.peso.toString() : ""}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={{marginBottom: 5}}>Tipo</Text>
+            <PickerSelect
+              placeholder={{}}
+              items={[{
+                label: "Goleiro",
+                value: "goleiro"
+              }, {
+                label: "Jogador",
+                value: "jogador"
+              }]}
+              style={{inputIOS: styles.picker}}
+              onValueChange={setFuncao}
+              value={player.type ? player.type : "jogador"}
+            />
+          </View>
+
+          <View style={styles.separator} />
+          <Button style={{flex: 1, fontSize: 20}} title="Fechar" onPress={() => hideTypeModal()} />
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   </View>
 }
 
 const defaultState = {
-  section: "players",
+  section: "help",
   inputPlayer: "",
   teams: [],
   players: [],
@@ -122,23 +177,42 @@ const defaultState = {
 type Props = {};
 
 const getPesoForTeam = team => {
-  return team.reduce(
+  let teamsAux = [...team]
+
+  // se n tiver goleiro, assume que tem 1 de peso 1
+  const hasGoleiro = team.filter(isGoleiro).length > 0
+
+  if (! hasGoleiro) {
+    teamsAux.unshift({peso: 1})
+  }
+
+  return teamsAux.reduce(
     (memo, player) => {
-      return memo + (player.peso || 1)
+      return memo + parseInt(player.peso || 1)
     }, 0
   )
 }
 
+const isNotGoleiro = player => player.type != 'goleiro'
+const isGoleiro = player => player.type == 'goleiro'
+
 const getAvailableTeams = (teams, linePlayersTotal, maxLinePlayersPerTeam) => {
   const lastTeamMaxCount = (linePlayersTotal % maxLinePlayersPerTeam) === 0 ? maxLinePlayersPerTeam : (linePlayersTotal % maxLinePlayersPerTeam)
-  const teamsAux = [...teams]
+  let teamsAux = [...teams]
 
   // + 1 por conta do goleiro
-  if (teams[ teams.length -1 ].length >= lastTeamMaxCount + 1) {
+  const lastTeamLinePlayersCount = teams[ teams.length -1 ].filter(isNotGoleiro).length
+  if (lastTeamLinePlayersCount >= lastTeamMaxCount) {
     teamsAux.pop()
   }
 
-  const menorPeso = teamsAux.map(getPesoForTeam).reduce((memo, item) => Math.min(memo, item))
+  // remove os times que ja tem todos os jogadores na linha
+  teamsAux = teamsAux.filter(players => {
+    return players.filter(isNotGoleiro).length < maxLinePlayersPerTeam
+  })
+
+  const menorPeso = teamsAux.map(
+    getPesoForTeam).reduce((memo, item) => Math.min(memo, item))
 
   return teamsAux.filter(t => getPesoForTeam(t) == menorPeso)
 }
@@ -151,7 +225,12 @@ export default class App extends Component<Props> {
     AsyncStorage.getItem("state").then(
       state => {
         if (state) {
-          this.setState(JSON.parse(state))
+          this.setState({
+            ... JSON.parse(state),
+            loaded: true
+          })
+        } else {
+          this.setState({loaded: true})
         }
       }
     )
@@ -184,9 +263,7 @@ export default class App extends Component<Props> {
   }
 
   setPeso = (player, peso) => {
-    this.setPlayerVariable(player, "peso", peso, player => {
-      this.setPlayerVariable(player, "showTypeModal", false, this.syncState)
-    })
+    this.setPlayerVariable(player, "peso", peso ? parseInt(peso) : peso, this.syncState)
   }
 
   setPlayerVariable = (player, variable, value, cb) => {
@@ -206,10 +283,11 @@ export default class App extends Component<Props> {
   }
 
   setFuncao = (player, value) => {
-    this.setPlayerVariable(player, "type", value, player => {
-      // n deveria fazer isso aqui, mas foda-se
-      this.setPlayerVariable(player, "showTypeModal", false, this.syncState)
-    })
+    this.setPlayerVariable(player, "type", value, this.syncState)
+  }
+
+  setPlayerName = (player, value) => {
+    this.setPlayerVariable(player, "name", value, this.syncState)
   }
 
   setSection = sectionName => {
@@ -227,8 +305,8 @@ export default class App extends Component<Props> {
     } = this.state
 
     const playersAvaiblable = players.filter(p => !!p.ableToTeam)
-    const goalkeppers = playersAvaiblable.filter(p => p.type == "goleiro")
-    const linePlayers = playersAvaiblable.filter(p => p.type != "goleiro")
+    const goalkeppers = playersAvaiblable.filter(isGoleiro)
+    const linePlayers = playersAvaiblable.filter(isNotGoleiro)
     const maxLinePlayersPerTeam = /^\d+$/.test(playersOnLine) ? parseInt(playersOnLine) : 5
 
     const teansCount = Math.max(goalkeppers.length, Math.ceil(linePlayers.length / maxLinePlayersPerTeam))
@@ -246,8 +324,8 @@ export default class App extends Component<Props> {
 
     linePlayers.sort(
       (a, b) => {
-        const aPeso = a.peso || 1
-        const bPeso = b.peso || 1
+        const aPeso = parseInt(a.peso || 1)
+        const bPeso = parseInt(b.peso || 1)
 
         if (aPeso == bPeso) {
           return 0.5 - Math.random()
@@ -282,8 +360,8 @@ export default class App extends Component<Props> {
 
   sortPlayers = memoize(
     players => players.sort((player1, player2) => {
-      const player1NameFinal = player1.type == "goleiro" ? `1${player1.name}` : `2${player1.name}`
-      const player2NameFinal = player2.type == "goleiro" ? `1${player2.name}` : `2${player2.name}`
+      const player1NameFinal = isGoleiro(player1) ? `1${player1.name}` : `2${player1.name}`
+      const player2NameFinal = isGoleiro(player2) ? `1${player2.name}` : `2${player2.name}`
 
       if (player1NameFinal > player2NameFinal) {
         return 1
@@ -302,7 +380,7 @@ export default class App extends Component<Props> {
 
     if (name != "" && players.map(p => p.name).indexOf(name) == -1) {
       this.setState({
-        players: [...players, {name, type: "jogador", ableToTeam: true}],
+        players: [...players, {name, type: "jogador", ableToTeam: true, peso: 2}],
         inputPlayer: ""
       }, this.syncState)
     }
@@ -316,8 +394,15 @@ export default class App extends Component<Props> {
       inputPlayer,
       teams,
       settingsOpen,
-      playersOnLine
+      playersOnLine,
+      loaded
     } = this.state
+
+    if (! loaded) {
+      return <View style={{flex: 1, alignItems: "center", justifyContent: "center"}}>
+        <ActivityIndicator size="large" />
+      </View>
+    }
 
     return (
       <SafeAreaView style={styles.container}>
@@ -326,6 +411,7 @@ export default class App extends Component<Props> {
             players={this.sortPlayers(players)}
             addPlayer={this.addPlayer}
             onInputPlayerChange={this.onInputPlayerChange}
+            setPlayerName={this.setPlayerName}
             showTypeModal={this.showTypeModal}
             hideTypeModal={this.hideTypeModal}
             deletePlayer={this.deletePlayer}
@@ -344,7 +430,7 @@ export default class App extends Component<Props> {
         }
 
         {
-          section == "credits" ? <Credits /> : null
+          section == "help" || section == "credits" ? <Help /> : null
         }
 
         {
@@ -374,12 +460,12 @@ export default class App extends Component<Props> {
               </View>
             </TouchableWithoutFeedback>
 
-            <TouchableWithoutFeedback onPress={() => this.setSection("credits")}>
+            <TouchableWithoutFeedback onPress={() => this.setSection("help")}>
               <View style={{flex: 1, justifyContent: "center", alignItems: "center", borderColor: "#d6d7da", borderLeftWidth: 1}}>
                 <Image
                   style={{width: 30, height: 30, marginRight: 5, marginTop: 2}}
                   resizeMode="contain"
-                  source={require('./images/credits.png')} />
+                  source={require('./images/help.png')} />
               </View>
             </TouchableWithoutFeedback>
         </View>
@@ -388,11 +474,36 @@ export default class App extends Component<Props> {
   }
 }
 
-const Credits = () => {
-  return <View style={{flex: 1, paddingLeft: 10, paddingRight: 10, justifyContent: "center", alignItems: "center"}}>
-    <Text>Feito com ♥ por Manoel Quirino Neto</Text>
-    <Button title="Facebook" onPress={() => { Linking.openURL('https://www.facebook.com/manoelquirinoneto') }} />
-  </View>
+const Help = () => {
+  return <SafeAreaView style={{flex: 1}}>
+    <ScrollView>
+      <View style={{paddingLeft: 10, paddingRight: 10, paddingTop: 40}}>
+        <View style={{justifyContent: "center", alignItems: "center"}}>
+          <Text style={{marginBottom: 10, fontSize: 15}}>Feito com ♥ por Manoel Quirino Neto</Text>
+          <Button title="Facebook" onPress={() => { Linking.openURL('https://www.facebook.com/manoelquirinoneto') }} />
+        </View>
+        <Text style={{marginTop: 20,}}>
+          Os jogadores são adicionados na tela inicial; {"\n"}{"\n"}
+
+          Os times são distribuidos aleatoriamente conforme as estrelas; {"\n"}{"\n"}
+
+          Arraste para direia, clique nas estrelas ou no ícone goleiro/chuteira para alterar atributos dos jogadores; {"\n"}{"\n"}
+
+          Arraste para a esquerda para excluir o jogador; {"\n"}{"\n"}
+
+          Não pode haver mais de um jogador com o mesmo nome, para isso, coloque "Manoel 1" e "Manoel 2"; {"\n"}{"\n"}
+
+          Clique no jogador para habilita-lo e desabilita-lo (ícone de check verde) para o sorteio; {"\n"}{"\n"}
+
+          É possível alterar a quantidade de jogadores na linha na tela do sorteio.
+        </Text>
+
+        <Text style={{textAlign: "center", marginTop: 20}}>
+          BOA PELADA
+        </Text>
+      </View>
+    </ScrollView>
+  </SafeAreaView>
 }
 
 const Team = ({players, count}) => {
@@ -407,16 +518,56 @@ const Settings = ({closeSettings, onPlayersOnLineChange, playersOnLine}) => {
       animationType="slide"
       transparent={false}
       visible={true}
+      onRequestClose={() => console.log("onRequestClose")}
     >
-    <View style={{flex: 1, justifyContent: "center"}}>
-      <Text style={{textAlign: "center", fontSize: 20, marginBottom: 20}}>Configurações</Text>
-      <View style={{ flexDirection: "row", alignItems: "center"}}>
-        <Text style={{width: 150, textAlign: "right", paddingRight: 10, fontSize: 15}}>Jogadores (linha): </Text>
-        <TextInput keyboardType="numeric" onChangeText={onPlayersOnLineChange} value={playersOnLine} autoCorrect={false} style={{borderColor: "#d6d7da", borderWidth: 1, height: 30, width: 50, textAlign: "center"}}/>
-      </View>
-      <View style={{ borderBottomWidth: 1, borderColor: "#d6d7da", marginTop: 10, marginBottom: 10 }} />
-      <Button title="Fechar" onPress={closeSettings} />
-    </View>
+    <SafeAreaView style={{flex: 1}}>
+      <ScrollView>
+        <Text style={styles.modalTitle}>Configurações</Text>
+
+        <View style={styles.inputGroup}>
+          <Text style={{marginBottom: 5}}>Jogadores na linha</Text>
+          <PickerSelect
+            placeholder={{}}
+            items={[{
+              label: "1",
+              value: "1"
+            },{
+              label: "2",
+              value: "2"
+            },{
+              label: "3",
+              value: "3"
+            },{
+              label: "4",
+              value: "4"
+            },{
+              label: "5",
+              value: "5"
+            },{
+              label: "6",
+              value: "6"
+            },{
+              label: "7",
+              value: "7"
+            },{
+              label: "8",
+              value: "8"
+            },{
+              label: "9",
+              value: "9"
+            },{
+              label: "10",
+              value: "10"
+            },]}
+            style={{inputIOS: styles.picker}}
+            onValueChange={onPlayersOnLineChange}
+            value={playersOnLine}
+          />
+        </View>
+
+        <Button title="Fechar" onPress={closeSettings} />
+      </ScrollView>
+    </SafeAreaView>
   </Modal>
 }
 
@@ -436,19 +587,19 @@ const Times = ({generateTeams, teams, openSettings}) => {
 
 }
 
-const Jogadores = ({players, setPeso, addPlayer, inputPlayer, onInputPlayerChange, showTypeModal, hideTypeModal, setFuncao, deletePlayer, toggleAbleToTeam}) => {
+const Jogadores = ({players, setPlayerName, setPeso, addPlayer, inputPlayer, onInputPlayerChange, showTypeModal, hideTypeModal, setFuncao, deletePlayer, toggleAbleToTeam}) => {
 
   const selectedPlayersCount = players.filter(p => p.ableToTeam).length
 
   return <ScrollView style={{flex: 1, paddingLeft: 10, paddingRight: 10}}>
-    <View style={{padding: 10, marginTop: 10, flexDirection: "row", backgroundColor: "white"}}>
-      <TextInput onChangeText={onInputPlayerChange} value={inputPlayer} autoCorrect={false} placeholder="Nome do perna de pau" style={{flex: 1, borderColor: "#d6d7da", borderWidth: 1, paddingLeft: 10, paddingRight: 10, height: 40, marginBottom: 0}}/>
+    <View style={{padding: 10, marginTop: 10, flexDirection: "row"}}>
+      <TextInput onChangeText={onInputPlayerChange} value={inputPlayer} autoCorrect={false} placeholder="Adicionar jogador" style={{flex: 1, borderColor: "#d6d7da", borderWidth: 1, paddingLeft: 10, paddingRight: 10, height: 40, marginBottom: 0}}/>
       <Button title="Add" onPress={() => addPlayer(inputPlayer)} />
     </View>
 
     <Text style={{flex: 1, textAlign: "center", marginTop: 10}}>{selectedPlayersCount} jogadores selecionados</Text>
 
-    <View style={{padding: 10, backgroundColor: "white", flex: 1}}>
+    <View style={{padding: 10, flex: 1}}>
       {
         players.map(player => <PlayerCard
           key={player.name} player={player}
@@ -458,6 +609,7 @@ const Jogadores = ({players, setPeso, addPlayer, inputPlayer, onInputPlayerChang
           toggleAbleToTeam={() => toggleAbleToTeam(player)}
           setPeso={peso => setPeso(player, peso)}
           setFuncao={funcao => setFuncao(player, funcao)}
+          setPlayerName={name => setPlayerName(player, name)}
         />
         )
       }
@@ -470,6 +622,35 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 10,
     paddingRight: 10,
-    // backgroundColor: "#ebf0f1",
   },
+
+  modalTitle: {
+    textAlign: "center", fontSize: 20, marginBottom: 20
+  },
+
+  separator: {
+    marginTop: 10, marginBottom: 10
+  },
+
+  inputGroup: {
+    paddingLeft: 10, paddingRight: 10, marginBottom: 10,
+  },
+
+  input: {
+    borderColor: "#d6d7da", borderBottomWidth: 1,
+    paddingTop: 5, paddingBottom: 5,
+  },
+
+  picker: {
+    fontSize: 16,
+    paddingTop: 13,
+    paddingHorizontal: 10,
+    paddingBottom: 12,
+    borderWidth: 1,
+    borderColor: 'gray',
+    borderRadius: 4,
+    backgroundColor: 'white',
+    color: 'black',
+  },
+
 });
